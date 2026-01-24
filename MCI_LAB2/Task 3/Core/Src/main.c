@@ -25,6 +25,7 @@
 #include "stdio.h"
 #include "stm32f3xx_hal.h"
 #include "string.h"
+#include "stdlib.h"
 extern UART_HandleTypeDef huart2;
 
 /* USER CODE END Includes */
@@ -98,7 +99,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -124,20 +125,47 @@ int main(void)
   {
     /* USER CODE END WHILE */
     // HAL_UART_Transmit(&huart2, (uint8_t *)"Hello, World!", 13, HAL_MAX_DELAY);
+
+    // char str[] = "Microcontrollers";
+    // int key = 10462;
+
+    // for (int i = 0; i < strlen(str); i++)
+    // {
+    //     str[i] = str[i] + (key % 256);
+    // }
+
+    // myPrintf("Encrypted String: %s\r\n", str);
+    // HAL_Delay(100);
+
+    // for (int i = 0; i < strlen(str); i++)
+    // {
+    //     str[i] = str[i] - (key % 256);
+    // }
+
+    // myPrintf("Decrypted String: %s\r\n", str);
+    // HAL_Delay(100);
+
+    myPrintf("Hello, World!\r\n");
+
     char str[] = "Microcontrollers";
     int key = 10462;
+
+    // Encrypt
     for (int i = 0; i < strlen(str); i++)
     {
-      str[i] = str[i] + (key % 256);
+        str[i] = str[i] + (key % 256);
     }
     myPrintf("Encrypted String: %s\r\n", str);
     HAL_Delay(100);
+
+    // Decrypt
     for (int i = 0; i < strlen(str); i++)
     {
-      str[i] = str[i] - (key % 256);
+        str[i] = str[i] - (key % 256);
     }
     myPrintf("Decrypted String: %s\r\n", str);
     HAL_Delay(100);
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -356,6 +384,20 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* --- USART2 pins PA2=TX, PA3=RX --- */
+
+  // PA2 -> TX
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;           // Alternate function push-pull
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // PA3 -> RX
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;           // Alternate function push-pull
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE END MX_GPIO_Init_1 */
 
