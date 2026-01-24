@@ -18,25 +18,20 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f3xx_hal_uart.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+extern UART_HandleTypeDef huart2;
 #include "stdarg.h"
 #include "stdio.h"
 #include "stm32f3xx_hal.h"
 #include "string.h"
 #include "stdlib.h"
-extern UART_HandleTypeDef huart2;
-
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
 void myPrintf(const char *fmt, ...)
 {
   char buffer[100];
@@ -46,6 +41,11 @@ void myPrintf(const char *fmt, ...)
   va_end(args);
   HAL_UART_Transmit(&huart2, (uint8_t *)buffer, strlen(buffer), HAL_MAX_DELAY);
 }
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -99,7 +99,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -124,47 +124,55 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    // HAL_UART_Transmit(&huart2, (uint8_t *)"Hello, World!", 13, HAL_MAX_DELAY);
+    int A[2][2] = {
+      {1, 2}, {3, 4}
+    };
 
-    // char str[] = "Microcontrollers";
-    // int key = 10462;
+    int B[2][2] = {
+      {5, 6}, {7, 8}
+    };
 
-    // for (int i = 0; i < strlen(str); i++)
-    // {
-    //     str[i] = str[i] + (key % 256);
-    // }
+    int C[2][2] = {
+      {0, 0}, {0, 0}
+    };
 
-    // myPrintf("Encrypted String: %s\r\n", str);
-    // HAL_Delay(100);
 
-    // for (int i = 0; i < strlen(str); i++)
-    // {
-    //     str[i] = str[i] - (key % 256);
-    // }
-
-    // myPrintf("Decrypted String: %s\r\n", str);
-    // HAL_Delay(100);
-
-    myPrintf("Hello, World!\r\n");
-
-    char str[] = "Microcontrollers";
-    int key = 10462;
-
-    // Encrypt
-    for (int i = 0; i < strlen(str); i++)
-    {
-        str[i] = str[i] + (key % 256);
+    for (int i=0; i<2; i++) {
+      for (int j=0; j<2; j++) {
+        C[i][j] = 0;
+        for (int k=0; k<2;k++) {
+          C[i][j] += A[i][j] * B[i][j];
+        }
+      }
     }
-    myPrintf("Encrypted String: %s\r\n", str);
-    HAL_Delay(100);
 
-    // Decrypt
-    for (int i = 0; i < strlen(str); i++)
-    {
-        str[i] = str[i] - (key % 256);
+    myPrintf("Matrix A:\r\n");
+
+    for (int i=0; i<2; i++) {
+      for (int j=0; j<2; j++) {
+        myPrintf("%d", A[i][j]);
+      }
+      myPrintf("\r\n");
     }
-    myPrintf("Decrypted String: %s\r\n", str);
-    HAL_Delay(100);
+
+    myPrintf("Matrix B:\r\n");
+
+    for (int i=0; i<2; i++) {
+      for (int j=0; j<2; j++) {
+        myPrintf("%d", B[i][j]);
+      }
+      myPrintf("\r\n");
+    }
+
+    myPrintf("Matrix C (A*B):\r\n");
+
+    for (int i=0; i<2; i++) {
+      for (int j=0; j<2; j++) {
+        myPrintf("%d", C[i][j]);
+      }
+      myPrintf("\r\n");
+    }
+    HAL_Delay(1000);
 
     /* USER CODE BEGIN 3 */
   }
@@ -237,7 +245,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00201D2B;
+  hi2c1.Init.Timing = 0x2000090E;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -288,7 +296,7 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
@@ -384,7 +392,7 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
-  
+
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */

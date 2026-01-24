@@ -25,7 +25,6 @@
 #include "stdio.h"
 #include "stm32f3xx_hal.h"
 #include "string.h"
-#include "stdlib.h"
 extern UART_HandleTypeDef huart2;
 
 /* USER CODE END Includes */
@@ -99,7 +98,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -125,47 +124,20 @@ int main(void)
   {
     /* USER CODE END WHILE */
     // HAL_UART_Transmit(&huart2, (uint8_t *)"Hello, World!", 13, HAL_MAX_DELAY);
+    myPrintf("Armstrong Number between 100 and 999:\r\n");
 
-    // char str[] = "Microcontrollers";
-    // int key = 10462;
+    for (int i=100; i<=900; i++) {
+      int hundreds = i/100;
+      int tenths = i/10;
+      int units = i % 10;
 
-    // for (int i = 0; i < strlen(str); i++)
-    // {
-    //     str[i] = str[i] + (key % 256);
-    // }
+      int sum_cubes = (hundreds*hundreds*hundreds) + (tenths*tenths*tenths) + (units*units*units);
 
-    // myPrintf("Encrypted String: %s\r\n", str);
-    // HAL_Delay(100);
-
-    // for (int i = 0; i < strlen(str); i++)
-    // {
-    //     str[i] = str[i] - (key % 256);
-    // }
-
-    // myPrintf("Decrypted String: %s\r\n", str);
-    // HAL_Delay(100);
-
-    myPrintf("Hello, World!\r\n");
-
-    char str[] = "Microcontrollers";
-    int key = 10462;
-
-    // Encrypt
-    for (int i = 0; i < strlen(str); i++)
-    {
-        str[i] = str[i] + (key % 256);
+      if (sum_cubes == i) {
+        myPrintf("%d\r\n", i);
+      }
     }
-    myPrintf("Encrypted String: %s\r\n", str);
-    HAL_Delay(100);
-
-    // Decrypt
-    for (int i = 0; i < strlen(str); i++)
-    {
-        str[i] = str[i] - (key % 256);
-    }
-    myPrintf("Decrypted String: %s\r\n", str);
-    HAL_Delay(100);
-
+    HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -384,7 +356,7 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
-  
+
   /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
