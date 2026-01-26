@@ -150,7 +150,7 @@ int main(void)
 
     for (int i=0; i<2; i++) {
       for (int j=0; j<2; j++) {
-        myPrintf("%d", A[i][j]);
+        myPrintf("%d ", A[i][j]);
       }
       myPrintf("\r\n");
     }
@@ -159,7 +159,7 @@ int main(void)
 
     for (int i=0; i<2; i++) {
       for (int j=0; j<2; j++) {
-        myPrintf("%d", B[i][j]);
+        myPrintf("%d ", B[i][j]);
       }
       myPrintf("\r\n");
     }
@@ -168,7 +168,7 @@ int main(void)
 
     for (int i=0; i<2; i++) {
       for (int j=0; j<2; j++) {
-        myPrintf("%d", C[i][j]);
+        myPrintf("%d" , C[i][j]);
       }
       myPrintf("\r\n");
     }

@@ -125,10 +125,10 @@ int main(void)
     /* USER CODE END WHILE */
     // HAL_UART_Transmit(&huart2, (uint8_t *)"Hello, World!", 13, HAL_MAX_DELAY);
     myPrintf("Armstrong Number between 100 and 999:\r\n");
-
-    for (int i=100; i<=900; i++) {
+    // HAL_Delay(1000);
+    for (int i=100; i<=999; i++) {
       int hundreds = i/100;
-      int tenths = i/10;
+      int tenths = (i/10) % 10;
       int units = i % 10;
 
       int sum_cubes = (hundreds*hundreds*hundreds) + (tenths*tenths*tenths) + (units*units*units);
