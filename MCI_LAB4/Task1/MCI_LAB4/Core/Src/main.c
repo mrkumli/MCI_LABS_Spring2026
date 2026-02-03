@@ -67,16 +67,6 @@ static void MX_USB_PCD_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-// void delay_ms (uint32_t ms) {
-//   HAL_TIM_Base_Start(&htim2);
-//   __HAL_TIM_SET_COUNTER(&htim2,0);
-//   int xtime = __HAL_TIM_GET_COUNTER(&htim2);
-//   while (xtime < ms) {
-//     xtime = __HAL_TIM_GET_COUNTER(&htim2);
-//   }
-//   HAL_TIM_Base_Stop(&htim2);
-
-// }
 void delay_ms (uint32_t ms) {
   HAL_TIM_Base_Start(&htim2);
   __HAL_TIM_SET_COUNTER(&htim2,0);
