@@ -127,14 +127,16 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    if (period > 0)
-    {
+    if (period > 0) {
         uint32_t freq = 48000000UL / period;
         freq = freq / 48;
         snprintf(msg, sizeof(msg), "%lu\r\n", freq);
-        HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+        HAL_UART_Transmit(&huart1, 
+          (uint8_t*)msg, 
+          strlen(msg), 
+          HAL_MAX_DELAY);
     }
-    HAL_Delay (100);
+    HAL_Delay (50);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
