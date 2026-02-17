@@ -18,24 +18,23 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include <string.h>
 #include "stm32f3xx_hal.h"
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
-
+#include <stdio.h>
+#include "arm_math.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "arm_math.h"
-#define FILTER_LEN 10
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+# define FILTER_LEN 10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -71,22 +70,35 @@ static void MX_USB_PCD_Init(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
-float32_t inputBuffer[FILTER_LEN];
-float32_t output;
-uint32_t buffer_index = 0;
 /* USER CODE BEGIN 0 */
-void apply_moving_average (float32_t new_sample) 
-{
-  inputBuffer[buffer_index] = new_sample;
-  buffer_index = (buffer_index+1) % FILTER_LEN;
-  arm_mean_f32(inputBuffer, FILTER_LEN, &output);
-}
+
 /* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
   * @retval int
   */
+float32_t inputBuffer[ FILTER_LEN ];
+float32_t output;
+uint32_t Buffer_Index = 0;
+void apply_moving_average (float32_t new_sample) {
+  inputBuffer[Buffer_Index] = new_sample;
+  Buffer_Index = (Buffer_Index + 1) % FILTER_LEN;
+  arm_mean_f32 ( inputBuffer, FILTER_LEN , &output );
+}
+
+uint32_t ADC_VALUE = 0;
+char message[50];           
+
+void HAL_ADC_Callback ( ADC_HandleTypeDef * hadc) {
+  if (hadc -> Instance == ADC1) {
+    apply_moving_average((float32_t)ADC_VALUE);
+    ADC_VALUE = HAL_ADC_GetValue (hadc);
+    sprintf(message, "%lu,%lu\r\n", (uint32_t)ADC_VALUE, (uint32_t)output);
+    HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 100);
+  }
+}
+
 int main(void)
 {
 
@@ -123,20 +135,16 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  char message[50];
-  uint32_t ADC_VALUE = 0;
-  HAL_ADC_Start(&hadc1);
+  HAL_ADC_Start_IT (& hadc1 );
 
   while (1)
   {
     /* USER CODE END WHILE */
-    ADC_VALUE = HAL_ADC_GetValue(&hadc1);
-    apply_moving_average(ADC_VALUE);
-    sprintf(message, "%lu,%lu\r\n", ADC_VALUE, output);
-    HAL_UART_Transmit(&huart1, (uint8_t*)message, strlen(message), 100);
-    HAL_Delay(100);
-    /* USER CODE BEGIN 3 */
-  }
+    {   
+        // sprintf(msg, "%lu,%lu\r\n", (uint32_t)adc_val, (uint32_t)output);
+        // HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+        /* USER CODE BEGIN 3 */
+  }}
   /* USER CODE END 3 */
 }
 
@@ -241,7 +249,7 @@ static void MX_ADC1_Init(void)
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
@@ -273,7 +281,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00201D2B;
+  hi2c1.Init.Timing = 0x2000090E;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -453,6 +461,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
