@@ -136,14 +136,22 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   HAL_ADC_Start_IT (& hadc1 );
+  char msg[50];         
+  uint32_t ADC_VALUE = 0; 
+  HAL_ADC_Start(&hadc1);
 
   while (1)
   {
     /* USER CODE END WHILE */
     {   
-        // sprintf(msg, "%lu,%lu\r\n", (uint32_t)adc_val, (uint32_t)output);
+        // sprintf(msg, "%lu,%lu\r\n", (uint32_t)ADC_VALUE, (uint32_t)output);
         // HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
         /* USER CODE BEGIN 3 */
+        ADC_VALUE = HAL_ADC_GetValue(&hadc1);
+        apply_moving_average((float32_t)ADC_VALUE);
+        sprintf(msg, "%lu,%lu\r\n", (uint32_t)ADC_VALUE, (uint32_t)output);
+        HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+        HAL_Delay(1);
   }}
   /* USER CODE END 3 */
 }
