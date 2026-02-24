@@ -21,17 +21,19 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
-#include <sys/_intsup.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/_intsup.h>
 #include "stm32f3xx_hal.h"
 #include "stm32f3xx_hal_def.h"
 #include "stm32f3xx_hal_gpio.h"
-#include <stdio.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define CTRL_REG1 0x20
+#define CTRL_REG1_VAL 0b00001111
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -72,17 +74,17 @@ static void MX_USB_PCD_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void startSPITransaction(uint8_t data) {
+void SPI_START(uint8_t data) {
     txData = data;
-    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);  // Set CS low
+
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);  // CS -> LOW
     HAL_SPI_Transmit_IT(&hspi1, &txData, sizeof(txData));
+
 }
 
-# define CTRL_REG1 0x20
-# define CTRL_REG1_VAL 0b00001111
-void gyro_init ()
+void gyro_init()
 {
-  uint8_t tx [2] = {CTRL_REG1 , CTRL_REG1_VAL};
+  uint8_t tx[2] = {CTRL_REG1 , CTRL_REG1_VAL};
   HAL_GPIO_WritePin (GPIOE , GPIO_PIN_3 , GPIO_PIN_RESET);
   HAL_SPI_Transmit (& hspi1 , tx , 2, HAL_MAX_DELAY);
   HAL_GPIO_WritePin (GPIOE , GPIO_PIN_3 , GPIO_PIN_SET  );
@@ -146,9 +148,9 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    uint8_t dataToSend = 0x26 | 0x80;
-    startSPITransaction(dataToSend);
-    HAL_Delay(150);  // 100-200 ms interval
+    uint8_t data = 0x26 | 0x80;
+    SPI_START(data);
+    HAL_Delay(100);  // 100-200 ms interval
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
