@@ -21,13 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/_intsup.h>
-#include "stm32f3xx_hal.h"
-#include "stm32f3xx_hal_def.h"
-#include "stm32f3xx_hal_gpio.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,8 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define CTRL_REG1 0x20
-#define CTRL_REG1_VAL 0b00001111
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -72,37 +65,6 @@ static void MX_USB_PCD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-void SPI_START(uint8_t data) {
-    txData = data;
-
-    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);  // CS -> LOW
-    HAL_SPI_Transmit_IT(&hspi1, &txData, sizeof(txData));
-
-}
-
-void gyro_init()
-{
-  uint8_t tx[2] = {CTRL_REG1 , CTRL_REG1_VAL};
-  HAL_GPIO_WritePin (GPIOE , GPIO_PIN_3 , GPIO_PIN_RESET);
-  HAL_SPI_Transmit (& hspi1 , tx , 2, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin (GPIOE , GPIO_PIN_3 , GPIO_PIN_SET  );
-}
-
-void HAL_SPI_RxCpltCallback(SPI_HandleTypeDef *hspi){
-    if (hspi->Instance == SPI1) {
-      HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
-
-      char temperature[20];
-      sprintf(temperature, "%d\r\n", rxData);
-      HAL_UART_Transmit(&huart2, (uint8_t*)temperature, strlen(temperature), HAL_MAX_DELAY);
-    }
-}
-void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
-    if (hspi->Instance == SPI1) {
-        HAL_SPI_Receive_IT(&hspi1, &rxData, sizeof(rxData));
-    }
-}
 
 /* USER CODE END 0 */
 
@@ -140,7 +102,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-  gyro_init();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,9 +110,7 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    int8_t data = 0x26 | 0x80;
-    SPI_START(data);
-    HAL_Delay(100);  // 100-200 ms interval
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
