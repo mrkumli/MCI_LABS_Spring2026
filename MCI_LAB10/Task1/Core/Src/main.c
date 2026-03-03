@@ -18,12 +18,14 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f3xx_hal_uart.h"
+#include<stdlib.h>
+#include<string.h>
+#include <stdio.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdint.h>
-#include <sys/types.h>
-#include <stdio.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,105 +64,12 @@ static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USB_PCD_Init(void);
 /* USER CODE BEGIN PFP */
-void gyro_init(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-float RAD_TO_DEG(float x) { 
-  return (x * 57.2958f); 
-}
 
-// Gyroscope initialization 
-void gyro_init(void) {
-  uint8_t tx[2] = { 0x20, 0b00001111 };
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
-}
-
-void gyro_set_ctrl_reg4(void) {
-  uint8_t tx[2] = { 0x23, 0b00000000 };
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
-  HAL_SPI_Transmit(&hspi1, tx, 2, HAL_MAX_DELAY);
-  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
-}
-
-// Gyroscope SPI reader function
-void reader(uint8_t tx, uint8_t *rx) {
-    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
-    HAL_SPI_Transmit(&hspi1, &tx, 1, HAL_MAX_DELAY);
-    HAL_SPI_Receive(&hspi1, rx, 1, HAL_MAX_DELAY);
-    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
-}
-
-// 2 8-bit values to 16-bit w read bit
-int16_t read_16bit(uint8_t H, uint8_t L) {
-  return (int16_t)((H << 8) | L);
-}
-
-
-void Init_LSM() {
-
-  uint8_t a = 0x67;
-  uint8_t b = 0x00;
-  HAL_I2C_Mem_Write(&hi2c1, 0x32, 0x20, 1, &a, 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Write(&hi2c1, 0x32, 0x23, 1, &b, 1, HAL_MAX_DELAY);
-
-}
-
-void Read_LSM() {
-
-  uint8_t high[3];
-  uint8_t low[3];
-
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x29, 1, &high[0], 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x28, 1, &low[0], 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2B, 1, &high[1], 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2A, 1, &low[1], 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2D, 1, &high[2], 1, HAL_MAX_DELAY);
-  HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2C, 1, &low[2], 1, HAL_MAX_DELAY);
-
-  raw[0] = (int16_t)(high[0] << 8) | low[0];
-  raw[1] = (int16_t)(high[1] << 8) | low[1];
-  raw[2] = (int16_t)(high[2] << 8) | low[2];
-
-  new[0] = raw[0] * 3.9f/1000.0f;
-  new[1] = raw[1] * 3.9f/1000.0f;
-  new[2] = raw[2] * 3.9f/1000.0f;
-  new[0] -= offset[0];
-  new[1] -= offset[1];
-  new[2] -= offset[2];
-}
-
-void Print_LSM() {
-
-  char message[50];
-
-  int len = snprintf(msg, sizeof(msg), "%.2f,%.2f,%.2f\r\n", new[0], new[1], new[2]);
-
-  HAL_UART_Transmit(&huart1, (uint8_t *)msg, len, HAL_MAX_DELAY);
-}
-
-void Offset_LSM() {
-  uint8_t high[3], low[3];
-  float temp_new[3] = {0, 0, 0};
-  for (int i = 0; i < 20; i++) {
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x29, 1, &high[0], 1, HAL_MAX_DELAY);
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x28, 1, &low[0], 1, HAL_MAX_DELAY);
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2B, 1, &high[1], 1, HAL_MAX_DELAY);
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2A, 1, &low[1], 1, HAL_MAX_DELAY);
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2D, 1, &high[2], 1, HAL_MAX_DELAY);
-    HAL_I2C_Mem_Read(&hi2c1, 0x33, 0x2C, 1, &low[2], 1, HAL_MAX_DELAY);
-    temp_new[0] += ((int16_t)(high[0] << 8) | low[0]) * 3.9f/1000.0f;
-    temp_new[1] += ((int16_t)(high[1] << 8) | low[1]) * 3.9f/1000.0f;
-    temp_new[2] += ((int16_t)(high[2] << 8) | low[2]) * 3.9f/1000.0f;
-    HAL_Delay(10);
-  }
-  offset[0] = temp_new[0] / 20.0f;
-  offset[1] = temp_new[1] / 20.0f;
-  offset[2] = temp_new[2] / 20.0f;
-}
 /* USER CODE END 0 */
 
 /**
@@ -197,46 +106,48 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-  Init_LSM();
-  Offset_LSM();
-  gyro_init();
-  gyro_set_ctrl_reg4();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  int n = 5;
+  int* array = (int*)malloc(n*sizeof(int));
+
+  if (array != NULL){
+    for (int i = 0; i < n; i++){
+      array[i] = i * 2;
+    }
+  }
+
+  int* array2 = (int*)calloc(n, sizeof(int));
+  if (array != NULL){
+    for (int i = 0; i < n; i++){
+      array2[i] = 0;
+      array2[i] = i + 1;
+    }
+  }
+
+  char buffer[50];
+  for (int i = 0; i < n; i++){
+    sprintf(buffer, "array[%d] = %d, array2[%d] = %d\n\r", i, array[i], i, array2[i]);
+    HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+  }
+
+  free(array);
+  free(array2);
+
+  array = NULL;
+  array2 = NULL;
+
+  sprintf(buffer, "ARRAY 1 + 2 FREE\n\r");
+  HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+
   while (1)
   {
     /* USER CODE END WHILE */
-    // Read accelerometer
-    Read_LSM();
-    Print_LSM();
-    // Read gyroscope
-    uint8_t xH, xL, yH, yL, zH, zL;
-    reader(0x80 | 0x29, &xH);
-    reader(0x80 | 0x28, &xL);
-    reader(0x80 | 0x2B, &yH);
-    reader(0x80 | 0x2A, &yL);
-    reader(0x80 | 0x2D, &zH);
-    reader(0x80 | 0x2C, &zL);
-    
-    int16_t x = read_16bit(xH, xL);
-    int16_t y = read_16bit(yH, yL);
-    int16_t z = read_16bit(zH, zL);
-    
-    float x_dps = x * 0.00875f;
-    float y_dps = y * 0.00875f;
-    float z_dps = z * 0.00875f;     
-    
-    char buffer[100];
 
-    int n = snprintf(buffer, sizeof(buffer), "%.2f,%.2f,%.2f\r\n", x_dps, y_dps, z_dps);
-
-    if (n > 0) {
-      HAL_UART_Transmit(&huart1, (uint8_t*)buffer, n, HAL_MAX_DELAY);
-    }
-    
-    HAL_Delay(100);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -360,16 +271,16 @@ static void MX_SPI1_Init(void)
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
-  hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
