@@ -146,23 +146,22 @@ int main(void)
   {
     HAL_Delay(1000);
     /* USER CODE END WHILE */
-    if(flagPrinting)
-    {
+    if(flagPrinting) { 
+      // flagPrinting = 0; 
+      uint32_t sum = 0; 
+      for(int i = 0; i < N; i++) { 
+        sum += vals[i]; 
+      } 
 
-      // flagPrinting = 0;
-      uint32_t sum = 0;
-      for(int i = 0; i < N; i++) {
-        sum += vals[i];
-      }
-      uint32_t avg = sum / N;
+      uint32_t avg = sum / N; 
 
-      float freq = 48000000.0 / (2 * avg);
-
-      sprintf(msg, "Freq: %.2f +/- Hz\r\n", freq);
-      print_uart(msg);
-      flagPrinting = 0;
-    }
-
+      uint32_t freq = 48000000 / (avg); 
+      // sprintf(msg, "Freq: %d +/- Hz\r\n", freq); 
+      // Freq: %lu Hz\r\n
+      sprintf(msg, "Freq: %lu Hz\r\n", freq); 
+      print_uart(msg); 
+      
+      flagPrinting = 0; }
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -234,7 +233,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x2000090E;
+  hi2c1.Init.Timing = 0x00201D2B;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -482,6 +481,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
     HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
