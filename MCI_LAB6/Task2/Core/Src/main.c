@@ -21,9 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,11 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define N 10
-uint32_t vals[N];
-uint8_t Index = 0;
-uint8_t firstEdge = 1;
-uint8_t flagPrinting = 0;
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -66,38 +60,14 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
-static void MX_USB_PCD_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_USB_PCD_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-void print_uart(const char* msg) {
-  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  if (GPIO_Pin == GPIO_PIN_0) {
-
-  if(firstEdge) {
-    __HAL_TIM_SET_COUNTER(&htim2, 0); // start
-    firstEdge = 0;
-
-  } else {
-    vals[Index++] = __HAL_TIM_GET_COUNTER(&htim2);
-    firstEdge = 1;
-    if(Index >= N){
-      Index = 0;
-      flagPrinting = 1;
-    }
-  }
-}
-}
-
 
 /* USER CODE END 0 */
 
@@ -133,35 +103,18 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
-  MX_USB_PCD_Init();
   MX_USART1_UART_Init();
+  MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_Base_Start(&htim2);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  char msg[100];
   while (1)
   {
-    HAL_Delay(1000);
     /* USER CODE END WHILE */
-    if(flagPrinting) { 
-      // flagPrinting = 0; 
-      uint32_t sum = 0; 
-      for(int i = 0; i < N; i++) { 
-        sum += vals[i]; 
-      } 
 
-      uint32_t avg = sum / N; 
-
-      uint32_t freq = 4800000 / (avg); 
-      // sprintf(msg, "Freq: %d +/- 1 Hz\r\n", freq); 
-      // Freq: %lu Hz\r\n
-      sprintf(msg, "Freq: %lu Hz\r\n", freq); 
-      print_uart(msg); 
-      
-      flagPrinting = 0; }
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -325,7 +278,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 9;
+  htim2.Init.Prescaler = 71;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 4294967295;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -487,8 +440,7 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
