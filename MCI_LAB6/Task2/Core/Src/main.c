@@ -21,12 +21,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+float frequency = 0;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -68,7 +70,36 @@ static void MX_USB_PCD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void print_uart(const char* msg) {
+  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+}
 
+uint32_t x1 = 0, x2= 0;
+uint32_t difference = 0;
+uint8_t firstEdge = 0;
+
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+  if (GPIO_Pin == GPIO_PIN_0) {
+
+  if(firstEdge) {
+    x1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
+    firstEdge = 0;
+
+  } else {
+    x2= HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
+    if (x2> x1)
+      difference = x2- x1;
+    else
+      difference = (0xFFFFFFFF - x1) + ic_val2;
+
+    frequency = 4800000.0 / difference;
+
+    firstEdge = 0;
+    }
+  }
+}
+}
 /* USER CODE END 0 */
 
 /**
@@ -106,7 +137,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,7 +145,8 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+    printf("Frequency: %.2f Hz\r\n", frequency);
+    HAL_Delay(1000);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
