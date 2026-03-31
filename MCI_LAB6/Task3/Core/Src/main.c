@@ -21,19 +21,20 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stm32f303xc.h"
+#include "stm32f3xx_hal.h"
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-float frequency = 0;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define PPR 20
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,6 +48,7 @@ I2C_HandleTypeDef hi2c1;
 SPI_HandleTypeDef hspi1;
 
 TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart1;
 
@@ -62,6 +64,7 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USB_PCD_Init(void);
 /* USER CODE BEGIN PFP */
@@ -70,36 +73,43 @@ static void MX_USB_PCD_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void print_uart(const char* msg) {
-  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-}
 
-uint32_t x1 = 0, x2= 0;
-uint32_t difference = 0;
-uint8_t firstEdge = 0;
-
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+/*
+ * LAB6: wait_for_falling_edge()
+ * Busy-waits until the given pin goes HIGH then LOW.
+ * "HIGH first" ensures we always start from a known state
+ * and don't accidentally catch the tail of a previous edge.
+ */
+void wait_for_falling_edge(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
-
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) {
-
-  if(firstEdge) {
-    x1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-    firstEdge = 0;
-
-  } else {
-    x2= HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-    if (x2> x1) {
-      difference = x2- x1;
-    } else {
-      difference = (0xFFFFFFFF - x1) + x2;
-    }
-    frequency = 666666.67 / difference;
-
-    firstEdge = 0;
-    }
-  }
+    while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == GPIO_PIN_RESET); /* wait HIGH */
+    while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == GPIO_PIN_SET);   /* wait LOW  */
 }
+
+/* ── Lab 5: Motor PWM at 50% duty cycle ── */
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 500);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 500);
+
+      /* ── Lab 5: Motor direction ── */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,  GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,  GPIO_PIN_RESET);
+
+    /*
+     * LAB6: Start TIM2 as a free-running counter.
+     * Prescaler=47 at 48 MHz → 1 tick = 1 µs.
+     * ARR=4294967295 (32-bit max) → overflows only after ~71 minutes.
+     * Simple subtraction (t2 - t1) always gives correct elapsed µs.
+     */
+    HAL_TIM_Base_Start(&htim2);
+
+    /* LAB6: measurement variables */
+    uint32_t t1, t2, elapsed_us;
+    float    frequency_hz, rpm;
+    char     uart_buf[64];
 
 /* USER CODE END 0 */
 
@@ -135,10 +145,11 @@ int main(void)
   MX_I2C1_Init();
   MX_SPI1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   MX_USART1_UART_Init();
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -146,10 +157,68 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    printf("Frequency: %.2f Hz\r\n", frequency);
-    // sprintf(msg, "Freq: %.2f Hz\r\n", freq); 
-    // print_uart(frequency); 
-    HAL_Delay(500);
+    /* ════════════════════════════════════════
+         * RIGHT MOTOR — Encoder on PC0 (D4)
+         * ════════════════════════════════════════ */
+
+        /*
+         * STEP 1: Detect first falling edge.
+         * The encoder output toggles as the motor spins.
+         * We block here until one falling edge is seen.
+         */
+        wait_for_falling_edge(GPIOC, GPIO_PIN_0);
+
+        /*
+         * STEP 2: Record timestamp (in microseconds) at first edge.
+         */
+        t1 = __HAL_TIM_GET_COUNTER(&htim2);
+        /*
+         * STEP 3: Detect the immediately following falling edge.
+         * The time between these two edges = one full pulse period.
+         */
+        wait_for_falling_edge(GPIOC, GPIO_PIN_0);
+
+        /*
+         * STEP 4: Record timestamp at second edge.
+         */
+        t2 = __HAL_TIM_GET_COUNTER(&htim2);
+
+        /*
+         * STEP 5: Compute elapsed time.
+         * TIM2 is 32-bit so t2 >= t1 for any realistic motor speed.
+         * elapsed_us directly equals microseconds because tick = 1 µs.
+         */
+        elapsed_us = t2 - t1;
+
+        if (elapsed_us > 0)
+        {
+            /*
+             * STEP 6: Frequency calculation.
+             * Timer runs at 1,000,000 Hz → period_seconds = elapsed_us / 1e6
+             * frequency = 1 / period_seconds = 1,000,000 / elapsed_us
+             */
+            frequency_hz = 1000000.0f / (float)elapsed_us;
+
+            /*
+             * STEP 7: RPM calculation.
+             * Each revolution produces PPR pulses.
+             * RPM = (60 seconds × pulses/second) / pulses/revolution
+             */
+            rpm = (60.0f * frequency_hz) / (float)PPR;
+
+            /*
+             * STEP 8: Transmit over UART.
+             * Open a serial terminal at 115200 baud on the ST-Link COM port.
+             */
+            snprintf(uart_buf, sizeof(uart_buf),
+                     "[RIGHT] Freq: %.2f Hz | RPM: %.2f\r\n",
+                     frequency_hz, rpm);
+            HAL_UART_Transmit(&huart1, (uint8_t *)uart_buf,
+                              strlen(uart_buf), HAL_MAX_DELAY);
+        }
+
+        /* 200 ms between readings — ~5 updates per second on terminal */
+        HAL_Delay(200);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -307,13 +376,12 @@ static void MX_TIM2_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_IC_InitTypeDef sConfigIC = {0};
 
   /* USER CODE BEGIN TIM2_Init 1 */
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 71;
+  htim2.Init.Prescaler = 47;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 4294967295;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -327,27 +395,68 @@ static void MX_TIM2_Init(void)
   {
     Error_Handler();
   }
-  if (HAL_TIM_IC_Init(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigIC.ICPolarity = TIM_INPUTCHANNELPOLARITY_RISING;
-  sConfigIC.ICSelection = TIM_ICSELECTION_DIRECTTI;
-  sConfigIC.ICPrescaler = TIM_ICPSC_DIV1;
-  sConfigIC.ICFilter = 0;
-  if (HAL_TIM_IC_ConfigChannel(&htim2, &sConfigIC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN TIM2_Init 2 */
 
   /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 47;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 999;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
 
 }
 
@@ -441,8 +550,10 @@ static void MX_GPIO_Init(void)
                           |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin
                           |LD6_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT2_Pin */
-  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT2_Pin;
+  /*Configure GPIO pins : DRDY_Pin MEMS_INT3_Pin MEMS_INT4_Pin MEMS_INT1_Pin
+                           MEMS_INT2_Pin */
+  GPIO_InitStruct.Pin = DRDY_Pin|MEMS_INT3_Pin|MEMS_INT4_Pin|MEMS_INT1_Pin
+                          |MEMS_INT2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
@@ -458,10 +569,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC0 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  /*Configure GPIO pins : ENC_RIGHT_Pin ENC_LEFT_Pin */
+  GPIO_InitStruct.Pin = ENC_RIGHT_Pin|ENC_LEFT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : B1_Pin */
@@ -470,9 +581,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+  /*Configure GPIO pin : ENC_IN_Pin */
+  GPIO_InitStruct.Pin = ENC_IN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(ENC_IN_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 

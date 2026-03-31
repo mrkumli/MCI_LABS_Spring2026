@@ -159,7 +159,7 @@ CMAKE_PROJECT_DESCRIPTION:STATIC=
 CMAKE_PROJECT_HOMEPAGE_URL:STATIC=
 
 //Value Computed by CMake
-CMAKE_PROJECT_NAME:STATIC=Task2
+CMAKE_PROJECT_NAME:STATIC=Task1
 
 //Path to a program.
 CMAKE_RANLIB:FILEPATH=/home/mrkumli/.local/share/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/arm-none-eabi-ranlib
@@ -230,13 +230,13 @@ CMAKE_TOOLCHAIN_FILE:FILEPATH=/home/mrkumli/Documents/MCI/MCI_LABS_Spring2026/MC
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //Value Computed by CMake
-Task2_BINARY_DIR:STATIC=/home/mrkumli/Documents/MCI/MCI_LABS_Spring2026/MCI_LAB6/Task2/build/Debug
+Task1_BINARY_DIR:STATIC=/home/mrkumli/Documents/MCI/MCI_LABS_Spring2026/MCI_LAB6/Task2/build/Debug
 
 //Value Computed by CMake
-Task2_IS_TOP_LEVEL:STATIC=ON
+Task1_IS_TOP_LEVEL:STATIC=ON
 
 //Value Computed by CMake
-Task2_SOURCE_DIR:STATIC=/home/mrkumli/Documents/MCI/MCI_LABS_Spring2026/MCI_LAB6/Task2
+Task1_SOURCE_DIR:STATIC=/home/mrkumli/Documents/MCI/MCI_LABS_Spring2026/MCI_LAB6/Task2
 
 
 ########################
