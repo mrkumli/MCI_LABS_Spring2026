@@ -34,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define PPR 20
+#define PPR 330.0f // Motor's Pulse Per Rotation
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,7 +55,9 @@ UART_HandleTypeDef huart1;
 PCD_HandleTypeDef hpcd_USB_FS;
 
 /* USER CODE BEGIN PV */
-
+  uint32_t t1, t2, usElapsed;
+  float    frequencyInHz, rpm;
+  char     uartBuffer[64];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,21 +77,16 @@ static void MX_USB_PCD_Init(void);
 /* USER CODE BEGIN 0 */
 
 /*
- * LAB6: wait_for_falling_edge()
- * Busy-waits until the given pin goes HIGH then LOW.
- * "HIGH first" ensures we always start from a known state
- * and don't accidentally catch the tail of a previous edge.
+ TODO: wait_for_falling_edge()
+ Busy-waits until the given pin goes HIGH then LOW.
+ "HIGH first" ensures we always start from a known state
+ and don't accidentally catch the tail of a previous edge.
  */
 void wait_for_falling_edge(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
 {
     while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == GPIO_PIN_RESET); /* wait HIGH */
     while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == GPIO_PIN_SET);   /* wait LOW  */
 }
-
-    /* LAB6: measurement variables */
-    uint32_t t1, t2, elapsed_us;
-    float    frequency_hz, rpm;
-    char     uart_buf[64];
 
 /* USER CODE END 0 */
 
@@ -143,11 +140,11 @@ int main(void)
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,  GPIO_PIN_RESET);
 
     /*
-     * LAB6: Start TIM2 as a free-running counter.
-     * Prescaler=47 at 48 MHz → 1 tick = 1 µs.
-     * ARR=4294967295 (32-bit max) → overflows only after ~71 minutes.
-     * Simple subtraction (t2 - t1) always gives correct elapsed µs.
-     */
+     LAB6 TODO: Start TIM2 as a free-running counter.
+     Prescaler=47 at 48 MHz → 1 tick = 1 µs.
+     ARR=4294967295 (32-bit max) → overflows only after ~71 minutes.
+     Simple subtraction (t2 - t1) always gives correct elapsed µs.
+    */
     HAL_TIM_Base_Start(&htim2);
 
 
@@ -158,68 +155,35 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-    /* ════════════════════════════════════════
-         * RIGHT MOTOR — Encoder on PC0 (D4)
-         * ════════════════════════════════════════ */
+    float sum = 0;
 
-        /*
-         * STEP 1: Detect first falling edge.
-         * The encoder output toggles as the motor spins.
-         * We block here until one falling edge is seen.
-         */
-        wait_for_falling_edge(GPIOC, ENC_RIGHT_Pin);
+    for (int i = 0; i < 10; i++) {
+      wait_for_falling_edge(GPIOC, ENC_RIGHT_Pin);
+      t1 = __HAL_TIM_GET_COUNTER(&htim2);
+      wait_for_falling_edge(GPIOC, ENC_RIGHT_Pin);
+      t2 = __HAL_TIM_GET_COUNTER(&htim2);
 
-        /*
-         * STEP 2: Record timestamp (in microseconds) at first edge.
-         */
-        t1 = __HAL_TIM_GET_COUNTER(&htim2);
-        /*
-         * STEP 3: Detect the immediately following falling edge.
-         * The time between these two edges = one full pulse period.
-         */
-        wait_for_falling_edge(GPIOC, GPIO_PIN_0);
+      usElapsed = t2 - t1;
 
-        /*
-         * STEP 4: Record timestamp at second edge.
-         */
-        t2 = __HAL_TIM_GET_COUNTER(&htim2);
+      if(usElapsed > 0){
+        float freq = 1000000.0f / (float)usElapsed;
+        sum += freq;
+      }
+    }
 
-        /*
-         * STEP 5: Compute elapsed time.
-         * TIM2 is 32-bit so t2 >= t1 for any realistic motor speed.
-         * elapsed_us directly equals microseconds because tick = 1 µs.
-         */
-        elapsed_us = t2 - t1;
+    float avg_freq = sum / 10.0f;
+    float rpm = (60.0f * avg_freq) / PPR;
 
-        if (elapsed_us > 0)
-        {
-            /*
-             * STEP 6: Frequency calculation.
-             * Timer runs at 1,000,000 Hz → period_seconds = elapsed_us / 1e6
-             * frequency = 1 / period_seconds = 1,000,000 / elapsed_us
-             */
-            frequency_hz = 1000000.0f / (float)elapsed_us;
+    snprintf(
+    uartBuffer, 
+    sizeof(uartBuffer),
+    "[RIGHT] Freq: %.2f Hz | RPM: %.2f\r\n",
+    avg_freq, rpm
+    );
 
-            /*
-             * STEP 7: RPM calculation.
-             * Each revolution produces PPR pulses.
-             * RPM = (60 seconds × pulses/second) / pulses/revolution
-             */
-            rpm = (60.0f * frequency_hz) / (float)PPR;
+    HAL_UART_Transmit(&huart1, (uint8_t *)uartBuffer, strlen(uartBuffer), HAL_MAX_DELAY);
 
-            /*
-             * STEP 8: Transmit over UART.
-             * Open a serial terminal at 115200 baud on the ST-Link COM port.
-             */
-            snprintf(uart_buf, sizeof(uart_buf),
-                     "[RIGHT] Freq: %.2f Hz | RPM: %.2f\r\n",
-                     frequency_hz, rpm);
-            HAL_UART_Transmit(&huart1, (uint8_t *)uart_buf,
-                              strlen(uart_buf), HAL_MAX_DELAY);
-        }
-
-        /* 200 ms between readings — ~5 updates per second on terminal */
-        HAL_Delay(200);
+    HAL_Delay(100);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
