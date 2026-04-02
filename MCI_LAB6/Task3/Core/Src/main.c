@@ -86,26 +86,6 @@ void wait_for_falling_edge(GPIO_TypeDef *GPIOx, uint16_t GPIO_Pin)
     while (HAL_GPIO_ReadPin(GPIOx, GPIO_Pin) == GPIO_PIN_SET);   /* wait LOW  */
 }
 
-/* ── Lab 5: Motor PWM at 50% duty cycle ── */
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 500);
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 500);
-
-      /* ── Lab 5: Motor direction ── */
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,  GPIO_PIN_SET);
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,  GPIO_PIN_RESET);
-
-    /*
-     * LAB6: Start TIM2 as a free-running counter.
-     * Prescaler=47 at 48 MHz → 1 tick = 1 µs.
-     * ARR=4294967295 (32-bit max) → overflows only after ~71 minutes.
-     * Simple subtraction (t2 - t1) always gives correct elapsed µs.
-     */
-    HAL_TIM_Base_Start(&htim2);
-
     /* LAB6: measurement variables */
     uint32_t t1, t2, elapsed_us;
     float    frequency_hz, rpm;
@@ -121,7 +101,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -150,6 +130,27 @@ int main(void)
   MX_USB_PCD_Init();
   /* USER CODE BEGIN 2 */
 
+  /* ── Lab 5: Motor PWM at 50% duty cycle ── */
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 500);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, 500);
+
+      /* ── Lab 5: Motor direction ── */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,  GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,  GPIO_PIN_SET);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4,  GPIO_PIN_RESET);
+
+    /*
+     * LAB6: Start TIM2 as a free-running counter.
+     * Prescaler=47 at 48 MHz → 1 tick = 1 µs.
+     * ARR=4294967295 (32-bit max) → overflows only after ~71 minutes.
+     * Simple subtraction (t2 - t1) always gives correct elapsed µs.
+     */
+    HAL_TIM_Base_Start(&htim2);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -166,7 +167,7 @@ int main(void)
          * The encoder output toggles as the motor spins.
          * We block here until one falling edge is seen.
          */
-        wait_for_falling_edge(GPIOC, GPIO_PIN_0);
+        wait_for_falling_edge(GPIOC, ENC_RIGHT_Pin);
 
         /*
          * STEP 2: Record timestamp (in microseconds) at first edge.
