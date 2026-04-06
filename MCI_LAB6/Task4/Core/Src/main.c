@@ -550,32 +550,31 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-  if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1){
-  if (firstEdge == 0){
-    // First edge: just record the timestamp
-    x1 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1); 
-    firstEdge = 1;
-  } else {
-    // Second edge: record timestamp and calculate difference
-    x2 = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-    if (x2 > x1) {
-      diff = x2 - x1;
+  // Ensure we are responding to the correct Timer and Channel
+  if (htim->Instance == TIM2 && htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+{
+    static uint32_t last_capture = 0;
+    uint32_t current_capture = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
+    uint32_t diff = 0;
+
+    // Calculate time between this edge and the last one
+    if (current_capture > last_capture) {
+        diff = current_capture - last_capture;
     } else {
-      // Handles the rare case where the 32-bit timer overflows
-      diff = (0xFFFFFFFF - x1) + x2;
+        // Standard overflow handling for 32-bit timer
+        diff = (0xFFFFFFFF - last_capture) + current_capture;
     }
 
-    if (diff != 0) {
-      // Because Prescaler = 47, 1 tick = 1 us (1,000,000 ticks per second)
-      freqInHz = 1000000.0f / (float)diff; 
-      motorRPM = (60.0f * freqInHz) / PPR; 
+    if (diff > 0) {
+        // 48MHz clock with Prescaler 47 = 1 tick per 1 microsecond
+        freqInHz = 1000000.0f / (float)diff;
+        motorRPM = (60.0f * freqInHz) / PPR;
     }
-
-    // Reset for the next pair of edges
-    firstEdge = 0;
-  }
+    
+    last_capture = current_capture;
   }
 }
 
