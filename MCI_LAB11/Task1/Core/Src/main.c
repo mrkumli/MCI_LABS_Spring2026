@@ -196,11 +196,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   { 
-      if (display_flag == 1) 
-      {
-          display_flag = 0; 
-          // Print accX, gyroX, angle for sensorplot.py
-          printf("%.2f,%.2f,%.2f\r\n", acc_data.scaled_x, acc_data.gyro_scaled_x, tilt_angle);
+      if (display_flag == 1) {
+        display_flag = 0; 
+        // Print accX, gyroX, angle for sensorplot.py
+        printf("%.2f,%.2f,%.2f\r\n", acc_data.scaled_x, acc_data.gyro_scaled_x, tilt_angle);
       }
     /* USER CODE END WHILE */
 
@@ -587,33 +586,33 @@ void GYRO_Read(LSM_Data *data) {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim->Instance == TIM4) {
-        static int counter = 0;
+      static int counter = 0;
 
-        // 1. Read Sensors
-        LSM_Read(&acc_data);
-        GYRO_Read(&acc_data);
+      // 1. Read Sensors
+      LSM_Read(&acc_data);
+      GYRO_Read(&acc_data);
 
-        // 2. Angle Estimation (Complementary Filter)
-        acc_angle = atan2f(acc_data.scaled_x, acc_data.scaled_z) * (180.0f / 3.14159f);
-        tilt_angle = 0.98f * (tilt_angle + (acc_data.gyro_scaled_x * dt)) + 0.02f * acc_angle;
+      // 2. Angle Estimation (Complementary Filter)
+      acc_angle = atan2f(acc_data.scaled_x, acc_data.scaled_z) * (180.0f / 3.14159f);
+      tilt_angle = 0.98f * (tilt_angle + (acc_data.gyro_scaled_x * dt)) + 0.02f * acc_angle;
 
-        // 3. PID Controller Math
-        float error = setpoint - tilt_angle;
-        float P = Kp * error;
-        integral += error * dt;
-        float I = Ki * integral;
-        float derivative = (error - previous_error) / dt;
-        float D = Kd * derivative;
-        
-        pid_output = P + I + D;
-        previous_error = error;
+      // 3. PID Controller Math
+      float error = setpoint - tilt_angle;
+      float P = Kp * error;
+      integral += error * dt;
+      float I = Ki * integral;
+      float derivative = (error - previous_error) / dt;
+      float D = Kd * derivative;
+      
+      pid_output = P + I + D;
+      previous_error = error;
 
-        // 4. Update display flag for UART (10Hz)
-        counter++;
-        if (counter >= 20) {
-            display_flag = 1;
-            counter = 0;
-        }
+      // 4. Update display flag for UART (10Hz)
+      counter++;
+      if (counter >= 20) {
+          display_flag = 1;
+          counter = 0;
+      }
     }
 }
 /* USER CODE END 4 */
