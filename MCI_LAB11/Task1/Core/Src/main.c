@@ -18,20 +18,33 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+//#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdint.h>
+#include <math.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+  int16_t raw_x; int16_t raw_y; int16_t raw_z;
+  float scaled_x; float scaled_y; float scaled_z;
+  float offset_x; float offset_y; float offset_z;
+  int16_t gyro_raw_x; int16_t gyro_raw_y; int16_t gyro_raw_z;
+  float gyro_scaled_x; float gyro_scaled_y; float gyro_scaled_z;
+} LSM_Data;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define LSM_ADDR (0x19 << 1)
+#define GYRO_CS_PORT GPIOE
+#define GYRO_CS_PIN  GPIO_PIN_3
+#define GYRO_CTRL_REG1 0x20
+#define GYRO_OUT_X_L   0x28
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,12 +57,31 @@ I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
 
-TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim4;
 
-PCD_HandleTypeDef hpcd_USB_FS;
+UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+LSM_Data acc_data;
 
+// Control Loop Variables (200Hz)
+float dt = 0.005f; 
+volatile uint8_t display_flag = 0;
+
+// Angle Estimation Variables
+float tilt_angle = 0.0f;
+float acc_angle = 0.0f;
+
+// PID Variables (To be tuned later)
+float Kp = 1.0f;  
+float Ki = 0.0f;
+float Kd = 0.0f;
+
+float setpoint = 0.0f; 
+float integral = 0.0f;
+float previous_error = 0.0f;
+float pid_output = 0.0f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -57,15 +89,53 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM3_Init(void);
-static void MX_USB_PCD_Init(void);
+static void MX_USART1_UART_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-
+void LSM_Init(void);
+void GYRO_Init(void);
+void GYRO_Read(LSM_Data *data);
+void LSM_Read(LSM_Data *data);
+void LSM_Offset_Calibration(LSM_Data *data);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void LSM_Offset_Calibration(LSM_Data *data) {
+    float sum_x = 0.0f, sum_y = 0.0f, sum_z = 0.0f;
+    uint8_t low_byte, high_byte;
+    int16_t raw_x, raw_y, raw_z;
 
+    for (int i = 0; i < 20; i++) {
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x28, 1, &low_byte, 1, HAL_MAX_DELAY);
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x29, 1, &high_byte, 1, HAL_MAX_DELAY);
+        raw_x = (int16_t)((high_byte << 8) | low_byte);
+
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x2A, 1, &low_byte, 1, HAL_MAX_DELAY);
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x2B, 1, &high_byte, 1, HAL_MAX_DELAY);
+        raw_y = (int16_t)((high_byte << 8) | low_byte);
+
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x2C, 1, &low_byte, 1, HAL_MAX_DELAY);
+        HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x2D, 1, &high_byte, 1, HAL_MAX_DELAY);
+        raw_z = (int16_t)((high_byte << 8) | low_byte);
+
+        sum_x += (raw_x / 16000.0f);
+        sum_y += (raw_y / 16000.0f);
+        sum_z += (raw_z / 16000.0f);
+
+        HAL_Delay(20);
+    }
+
+    data->offset_x = sum_x / 20.0f;
+    data->offset_y = sum_y / 20.0f;
+    data->offset_z = (sum_z / 20.0f) - 1.0f;
+}
+
+int _write(int file, char *ptr, int len) {
+    HAL_UART_Transmit(&huart1, (uint8_t*)ptr, len, HAL_MAX_DELAY);
+    return len;
+}
 /* USER CODE END 0 */
 
 /**
@@ -99,41 +169,30 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_SPI1_Init();
-  MX_TIM3_Init();
-  MX_USB_PCD_Init();
-  
+  MX_USART1_UART_Init();
+  //MX_USB_DEVICE_Init();
+  MX_TIM2_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-
+  LSM_Init();
+  GYRO_Init();
+  LSM_Offset_Calibration(&acc_data);
+  
+  HAL_TIM_Base_Start_IT(&htim4); // Start the 200Hz Timer Interrupt
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
-  // // Start PWM
-  // HAL_TIM_PWM_Start (&htim3, TIM_CHANNEL_3 );
-  // // Update duty cycle
-  // __HAL_TIM_SET_COMPARE (&htim3 , TIM_CHANNEL_3 , new_CCR_value );
-  // // Stop PWM
-  // HAL_TIM_PWM_Stop (&htim3, TIM_CHANNEL_3 );
-  
   while (1)
-  {
+  { 
+      if (display_flag == 1) 
+      {
+          display_flag = 0; 
+          // Print accX, gyroX, angle for sensorplot.py
+          printf("%.2f,%.2f,%.2f\r\n", acc_data.scaled_x, acc_data.gyro_scaled_x, tilt_angle);
+      }
     /* USER CODE END WHILE */
-    HAL_TIM_PWM_Start (&htim3, TIM_CHANNEL_1 );
-    for(int i = 0; i <= 999; i++)
-    {
-      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-      HAL_Delay(2);
-    }
-    HAL_TIM_PWM_Stop (&htim3, TIM_CHANNEL_1 );
 
-    HAL_TIM_PWM_Start (&htim3, TIM_CHANNEL_1 );
-    for(int i = 999; i >= 0; i--)
-    {
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-        HAL_Delay(2);
-    }
-    HAL_TIM_PWM_Stop (&htim3, TIM_CHANNEL_1 );
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -178,7 +237,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_USART1
+                              |RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   PeriphClkInit.USBClockSelection = RCC_USBCLKSOURCE_PLL;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -258,7 +319,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -276,82 +337,127 @@ static void MX_SPI1_Init(void)
 }
 
 /**
-  * @brief TIM3 Initialization Function
+  * @brief TIM2 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_TIM3_Init(void)
+static void MX_TIM2_Init(void)
 {
 
-  /* USER CODE BEGIN TIM3_Init 0 */
+  /* USER CODE BEGIN TIM2_Init 0 */
 
-  /* USER CODE END TIM3_Init 0 */
+  /* USER CODE END TIM2_Init 0 */
 
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
-  /* USER CODE BEGIN TIM3_Init 1 */
+  /* USER CODE BEGIN TIM2_Init 1 */
 
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 47;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 999;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 7199;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 99;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
   {
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
+  /* USER CODE BEGIN TIM2_Init 2 */
 
-  /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
+  /* USER CODE END TIM2_Init 2 */
 
 }
 
 /**
-  * @brief USB Initialization Function
+  * @brief TIM4 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_USB_PCD_Init(void)
+static void MX_TIM4_Init(void)
 {
 
-  /* USER CODE BEGIN USB_Init 0 */
+  /* USER CODE BEGIN TIM4_Init 0 */
 
-  /* USER CODE END USB_Init 0 */
+  /* USER CODE END TIM4_Init 0 */
 
-  /* USER CODE BEGIN USB_Init 1 */
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
 
-  /* USER CODE END USB_Init 1 */
-  hpcd_USB_FS.Instance = USB;
-  hpcd_USB_FS.Init.dev_endpoints = 8;
-  hpcd_USB_FS.Init.speed = PCD_SPEED_FULL;
-  hpcd_USB_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
-  hpcd_USB_FS.Init.low_power_enable = DISABLE;
-  hpcd_USB_FS.Init.battery_charging_enable = DISABLE;
-  if (HAL_PCD_Init(&hpcd_USB_FS) != HAL_OK)
+  /* USER CODE BEGIN TIM4_Init 1 */
+
+  /* USER CODE END TIM4_Init 1 */
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 7199;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim4.Init.Period = 49;
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN USB_Init 2 */
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim4, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM4_Init 2 */
 
-  /* USER CODE END USB_Init 2 */
+  /* USER CODE END TIM4_Init 2 */
+
+}
+
+/**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart1.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart1.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
 
 }
 
@@ -375,7 +481,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin
+  HAL_GPIO_WritePin(GPIOE, GYRO_CS_Pin|LD4_Pin|LD3_Pin|LD5_Pin
                           |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin
                           |LD6_Pin, GPIO_PIN_RESET);
 
@@ -387,10 +493,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : CS_I2C_SPI_Pin LD4_Pin LD3_Pin LD5_Pin
+  /*Configure GPIO pins : GYRO_CS_Pin LD4_Pin LD3_Pin LD5_Pin
                            LD7_Pin LD9_Pin LD10_Pin LD8_Pin
                            LD6_Pin */
-  GPIO_InitStruct.Pin = CS_I2C_SPI_Pin|LD4_Pin|LD3_Pin|LD5_Pin
+  GPIO_InitStruct.Pin = GYRO_CS_Pin|LD4_Pin|LD3_Pin|LD5_Pin
                           |LD7_Pin|LD9_Pin|LD10_Pin|LD8_Pin
                           |LD6_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -410,7 +516,81 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void LSM_Init(void) {
+    uint8_t data = 0x57; // 100Hz, enable X Y Z
+    HAL_I2C_Mem_Write(&hi2c1, LSM_ADDR, 0x20, I2C_MEMADD_SIZE_8BIT, &data, 1, HAL_MAX_DELAY);
+    data = 0x88; // ±2g, BDU=1, HR=1
+    HAL_I2C_Mem_Write(&hi2c1, LSM_ADDR, 0x23, I2C_MEMADD_SIZE_8BIT, &data, 1, HAL_MAX_DELAY);
+}
 
+void GYRO_Init(void) {
+    uint8_t data[2] = {GYRO_CTRL_REG1, 0x0F}; // Power on, enable X Y Z, 95Hz
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
+    HAL_SPI_Transmit(&hspi1, data, 2, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
+}
+
+void LSM_Read(LSM_Data *data) {
+    uint8_t rawData[6];
+    HAL_I2C_Mem_Read(&hi2c1, LSM_ADDR, 0x28 | 0x80, I2C_MEMADD_SIZE_8BIT, rawData, 6, HAL_MAX_DELAY);
+
+    data->raw_x = (int16_t)((rawData[1] << 8) | rawData[0]);
+    data->raw_y = (int16_t)((rawData[3] << 8) | rawData[2]);
+    data->raw_z = (int16_t)((rawData[5] << 8) | rawData[4]);
+
+    data->scaled_x = (data->raw_x / 16000.0f) - data->offset_x;
+    data->scaled_y = (data->raw_y / 16000.0f) - data->offset_y;
+    data->scaled_z = (data->raw_z / 16000.0f) - data->offset_z;
+}
+
+void GYRO_Read(LSM_Data *data) {
+    uint8_t tx_buf[7] = {0xC0 | GYRO_OUT_X_L, 0,0,0,0,0,0}; 
+    uint8_t rx_buf[7] = {0};
+
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_RESET);
+    HAL_SPI_TransmitReceive(&hspi1, tx_buf, rx_buf, 7, HAL_MAX_DELAY);
+    HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
+
+    data->gyro_raw_x = (int16_t)((rx_buf[2] << 8) | rx_buf[1]);
+    data->gyro_raw_y = (int16_t)((rx_buf[4] << 8) | rx_buf[3]);
+    data->gyro_raw_z = (int16_t)((rx_buf[6] << 8) | rx_buf[5]);
+
+    data->gyro_scaled_x = data->gyro_raw_x * 0.00875f;
+    data->gyro_scaled_y = data->gyro_raw_y * 0.00875f;
+    data->gyro_scaled_z = data->gyro_raw_z * 0.00875f;
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM4) {
+        static int counter = 0;
+
+        // 1. Read Sensors
+        LSM_Read(&acc_data);
+        GYRO_Read(&acc_data);
+
+        // 2. Angle Estimation (Complementary Filter)
+        acc_angle = atan2f(acc_data.scaled_x, acc_data.scaled_z) * (180.0f / 3.14159f);
+        tilt_angle = 0.98f * (tilt_angle + (acc_data.gyro_scaled_x * dt)) + 0.02f * acc_angle;
+
+        // 3. PID Controller Math
+        float error = setpoint - tilt_angle;
+        float P = Kp * error;
+        integral += error * dt;
+        float I = Ki * integral;
+        float derivative = (error - previous_error) / dt;
+        float D = Kd * derivative;
+        
+        pid_output = P + I + D;
+        previous_error = error;
+
+        // 4. Update display flag for UART (10Hz)
+        counter++;
+        if (counter >= 20) {
+            display_flag = 1;
+            counter = 0;
+        }
+    }
+}
 /* USER CODE END 4 */
 
 /**
