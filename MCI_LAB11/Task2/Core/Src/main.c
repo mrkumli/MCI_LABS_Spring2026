@@ -88,10 +88,6 @@ float integral = 0.0f;
 float previous_error = 0.0f;
 float pid_output = 0.0f;
 
-// PID Variables (To be tuned later)
-float Kp = 25.0f;  
-float Ki = 0.1f;
-float Kd = 0.65f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
