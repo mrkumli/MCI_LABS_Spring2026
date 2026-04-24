@@ -115,13 +115,13 @@ float acc_angle     = 0.0f;
  * Once direction is confirmed correct, add Ki and Kd.
  * Lab requires at least 2 terms (PI, PD, or PID).
  */
-float Kp = 25.0f;
+float Kp = 5.0f;
 // float Ki = 0.1f;
 // float Kd = 0.5f;
-float Ki = 0.1f;
-float Kd = 0.5f;
+float Ki = 0.0f;
+float Kd = 0.0f;
 
-float setpoint       = -1.25f;  /* Desired angle = 0° (upright) */
+float setpoint       = 0.0f;  /* Desired angle = 0° (upright) */
 float integral       = 0.0f;
 float previous_error = 0.0f;
 float pid_output     = 0.0f;
@@ -278,7 +278,7 @@ int main(void)
              */
             printf("%.2f,%.2f,%.2f\r\n",
                    acc_angle,
-                   acc_data.gyro_scaled_x,
+                   acc_data.gyro_scaled_y,
                    tilt_angle);
         }
     }
@@ -794,8 +794,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
          * flat or is backwards, try swapping to atan2(scaled_y, scaled_z) and
          * using gyro_scaled_y. This depends on physical board orientation.
          */
-        acc_angle  = atan2f(acc_data.scaled_x, acc_data.scaled_z) * (180.0f / M_PI);
-        tilt_angle = 0.98f * (tilt_angle + acc_data.gyro_scaled_x * DT)
+        acc_angle  = atan2f(acc_data.scaled_y, acc_data.scaled_z) * (180.0f / M_PI);
+        tilt_angle = 0.98f * (tilt_angle + acc_data.gyro_scaled_y * DT)
                    + 0.02f * acc_angle;
 
         /* ── STEP 3: PID controller ──
@@ -833,7 +833,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         previous_error = error;
 
         /* ── STEP 4: Drive motors ── */
-        Set_Motor_Speeds(pid_output);
+        Set_Motor_Speeds(-pid_output);
 
         /* ── STEP 5: Throttle UART to 10Hz ──
          * 200Hz ISR / counter threshold 20 = 10Hz display rate.
