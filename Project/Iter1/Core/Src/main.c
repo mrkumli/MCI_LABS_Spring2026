@@ -119,7 +119,7 @@ float Kp = 5.0f;
 // float Ki = 0.1f;
 // float Kd = 0.5f;
 float Ki = 0.0f;
-float Kd = 0.0f;
+float Kd = 0.5f;
 
 float setpoint       = 0.0f;  /* Desired angle = 0° (upright) */
 float integral       = 0.0f;
