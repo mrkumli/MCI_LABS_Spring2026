@@ -42,7 +42,7 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* ── IMU ── */
+/* IMU STUFF */
 #define LSM_ADDR       (0x19 << 1)   /* Accelerometer I2C address (SA0=1) */
 #define GYRO_CS_PORT   GPIOE
 #define GYRO_CS_PIN    GPIO_PIN_3    /* PE3 = GYRO_CS from Task 1 */
@@ -52,40 +52,44 @@ typedef struct {
 // Motor Control Constants
 #define MAX_PWM 999.0f
 
-/* ── Motor direction pins ──
- * Right motor: PB4 (DIR A, shield D12) and PC8 (DIR B, shield D8)
- * Left  motor: PC7 (DIR A, shield D7)  and PC5 (DIR B, shield D6 mapped free)
- * Adjust PC5 to whichever free pin you physically wired shield D6 to.
+/* <============ Motor direction pins 
+ Right motor: PB4 (DIR A, shield D12) and PC8 (DIR B, shield D8)
+ Left  motor: PC7 (DIR A, shield D7)  and PC5 (DIR B, shield D6 mapped free)
+ ====////?>
  */
 #define RIGHT_DIR1_PORT  GPIOB
-#define RIGHT_DIR1_PIN   GPIO_PIN_4   /* PB4 — shield D12 */
+#define RIGHT_DIR1_PIN   GPIO_PIN_4   /* PB4 to shield D12 */
 #define RIGHT_DIR2_PORT  GPIOC
-#define RIGHT_DIR2_PIN   GPIO_PIN_8   /* PC8 — shield D8  */
+#define RIGHT_DIR2_PIN   GPIO_PIN_8   /* PC8 to shield D8  */
 #define LEFT_DIR1_PORT   GPIOC
-#define LEFT_DIR1_PIN    GPIO_PIN_7   /* PC7 — shield D7  */
+#define LEFT_DIR1_PIN    GPIO_PIN_7   /* PC7 to shield D7  */
 #define LEFT_DIR2_PORT   GPIOB
-#define LEFT_DIR2_PIN    GPIO_PIN_3   /* PB3 — shield D6 */
+#define LEFT_DIR2_PIN    GPIO_PIN_3   /* PB3 to shield D6 */
 
 
-/* ── PWM ──
- * TIM3 ARR = 999, so valid range is 0–999.
- * MAX_PWM caps PID output so we never exceed ARR.
- * DEADZONE lifts the floor so motors actually spin (overcome static friction).
+/* ============== 
+  PWM 
+  ====>>>
+ TIM3 ARR = 999 (valid range is 0999)
+ MAX_PWM caps PID output so we never exceed ARR.
+ DEADZONE lifts the floor so motors actually spin (overcome static friction).
  */
 #define MAX_PWM      999.0f
-#define PWM_DEADZONE 150.0f   /* Tune this: increase if motors don't start */
+#define PWM_DEADZONE 150.0f // Toc hange when motors dont start
 
-/* ── Timing ──
- * DT must match TIM4: Prescaler=4799, Period=49
- * → 48MHz / 4800 / 50 = 200Hz → DT = 1/200 = 0.005s
- * Using a #define ensures ONE value is used everywhere (filter + PID).
+/* ========  
+  Timing 
+  >>>>>>>
+ DT must match TIM4: Prescaler=4799, Period=49
+ 48MHz / 4800 / 50 = 200Hz then into DT = 1/200 = 0.005s
+ (filter + PID) define here and used everywhere
  */
 #define DT  0.005f
 
 
 /* USER CODE END PD */
 
-/* Private macro -------------------------------------------------------------*/
+/* Private macro -----------------------a--------------------------------------*/
 /* USER CODE BEGIN PM */
 
 /* USER CODE END PM */
@@ -103,17 +107,17 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 LSM_Data acc_data;
 
-/* Shared between ISR and main loop */
+// Shared between ISR and main loop 
 volatile uint8_t display_flag = 0;
 
-/* Complementary filter state */
+// Complementary filter state
 float tilt_angle    = 0.0f;
 float acc_angle     = 0.0f;
 
 /*
- * PID gains — start with Kp=5, Ki=0, Kd=0 (P-only) to verify motor direction.
- * Once direction is confirmed correct, add Ki and Kd.
- * Lab requires at least 2 terms (PI, PD, or PID).
+ PID gains:
+          Started with Kp=5, Ki=0, Kd=0 (P-only) for verifying motor dir.
+ Ki Kd added after verifying
  */
 float Kp = 5.0f;
 // float Ki = 0.1f;
@@ -121,7 +125,7 @@ float Kp = 5.0f;
 float Ki = 0.0f;
 float Kd = 0.5f;
 
-float setpoint       = 0.0f;  /* Desired angle = 0° (upright) */
+float setpoint       = 0.0f;  /// Desired angle = 0 deg. (upright)
 float integral       = 0.0f;
 float previous_error = 0.0f;
 float pid_output     = 0.0f;
@@ -153,18 +157,22 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /*
  * Calibrate_Sensors()
- * ────────────────────
- * WHY: Both sensors have a small constant error (offset/bias) at rest.
+ * =============
+ * WHY: 
+        ----Both sensors have a small constant error (offset/bias) at rest.
  *      We measure that bias here so every future reading subtracts it out.
- * HOW: Take 50 readings while board is flat and still, average them.
+
+ * HOW: 
+        ----Take 50 readings while board is flat and still, average them.
  *      Accelerometer Z gets 1g subtracted because gravity acts along Z when flat.
- * IMPORTANT: Board must be completely still during these ~500ms.
+
+ * (Board comp still during these appx 500m)
  */
 
 void Calibrate_Sensors(LSM_Data *data) {
     float sx=0,sy=0,sz=0, gx=0,gy=0,gz=0;
 
-    /* Zero offsets first so reads during calibration are raw (uncompensated) */
+    // Zero offsets first so reads during calibration are raw (uncompensated)
     data->offset_x = data->offset_y = data->offset_z = 0.0f;
     data->gyro_offset_x = data->gyro_offset_y = data->gyro_offset_z = 0.0f;
 
@@ -177,14 +185,14 @@ void Calibrate_Sensors(LSM_Data *data) {
     }
     data->offset_x = sx/50.0f;
     data->offset_y = sy/50.0f;
-    data->offset_z = (sz/50.0f) - 1.0f;  /* Remove 1g gravity from Z */
+    data->offset_z = (sz/50.0f) - 1.0f;  /// Remove 1g gravity from Z 
 
     data->gyro_offset_x = gx/50.0f;
     data->gyro_offset_y = gy/50.0f;
     data->gyro_offset_z = gz/50.0f;
 }
 
-/* Redirect printf() to UART so we can use printf() for serial output */
+// Redirected printf() to UART so we can use printf() for serial output
 int _write(int file, char *ptr, int len) {
     HAL_UART_Transmit(&huart1, (uint8_t*)ptr, len, HAL_MAX_DELAY);
     return len;
@@ -229,31 +237,30 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 
-  /* Initialize IMU sensors */
+  /// Initialize IMU sensors 
     LSM_Init();
     GYRO_Init();
 
    /*
-     * Wait 250ms for hardware to fully power on.
-     * During this time: place the robot flat on a table and DON'T touch it.
-     * The next call (Calibrate_Sensors) will measure the resting bias.
+        =Wait 250ms for hardware to fully power on
+        =During this we place the robot flat on a table without touching it
+        =(Calibrate_Sensors) is the next call that will measure the resting bias
      */
     HAL_Delay(250);
     Calibrate_Sensors(&acc_data);
 
     /*
-     * Start TIM3 PWM on both motor channels.
-     * CH1 = PC6 = Right motor (shield D10)
-     * CH4 = PC9 = Left  motor (shield D9)
-     * Both start at 0 duty cycle (motors off until PID commands them).
+     == TM3 PWM Start on both channels
+     ==> CH1 = PC6 = Right motor (shield D10)
+     ==> CH4 = PC9 = Left  motor (shield D9)
+     == Both start at 0 duty cycle (motors off until PID commands them)
      */
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
 
     /*
-     * Start TIM4 interrupt — this kicks off the 200Hz control loop.
-     * From this point on, HAL_TIM_PeriodElapsedCallback fires every 5ms.
-     */
+     = > Start TIM4 interrupt which kicks off 200Hz control loop
+     = > From this point on, HAL_TIM_PeriodElapsedCallback fires every 5ms */
     HAL_TIM_Base_Start_IT(&htim4);
     
   /* USER CODE END 2 */
@@ -262,25 +269,27 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   { 
-      /*
-         * Main loop ONLY handles UART printing at 10Hz.
-         * The ISR sets display_flag every 20 ticks (200Hz/20 = 10Hz).
-         * We read the flag here and print — this keeps slow UART I/O
-         * out of the time-critical ISR.
-         */
-        if (display_flag == 1) {
-            display_flag = 0;
-            /*
-             * Print 3 values separated by commas for sensorplot.py or serial monitor:
-             * Column 1: accelerometer angle estimate
-             * Column 2: gyroscope rate (deg/s)
-             * Column 3: complementary filter output (the actual tilt angle used by PID)
-             */
-            printf("%.2f,%.2f,%.2f\r\n",
-                   acc_angle,
-                   acc_data.gyro_scaled_y,
-                   tilt_angle);
-        }
+    /*
+        ==== > Main loop ONLY handles UART printing at 10Hz
+        ==== > The ISR sets display_flag every 20 ticks (200Hz/20 = 10Hz)
+        ==== > We read the flag here and print , this keeps slow UART I/O
+        ==== > Out of the time-critical ISR */
+
+      if (display_flag == 1) {
+        display_flag = 0;/*
+          === \\ 3 Values separated for sensorplot.py(seial monitor):
+          === \\ Column 1: accelerometer angle estimate
+          === \\ Column 2: gyroscope rate (deg/s)
+          === \\ Column 3: complementary filter output (the actual tilt angle used by PID)*/
+
+        printf(
+        "%.2f,%.2f,%.2f\r\n",
+        acc_angle,
+        acc_data.gyro_scaled_y,
+        tilt_angle
+        );
+
+      }
     }
     /* USER CODE END WHILE */
 
@@ -656,11 +665,11 @@ void LSM_Init(void) {
 
 /*
  * LSM_Read()
- * ──────────
- * Read 6 bytes of accelerometer data via I2C (X, Y, Z each as 2 bytes).
- * The 0x80 OR sets the auto-increment bit so all 6 registers are read in one call.
- * In High-Resolution mode: shift right 4 bits, sensitivity = 1mg/LSB.
- * Divide by 1000 to convert mg → g, then subtract calibrated offset.
+ * //////////////////////
+))))))))))) Read 6 bytes of accelerometer data via I2C (X, Y, Z each as 2 bytes)
+))))))))))) The 0x80 OR sets the auto-increment bit so all 6 registers are read in one call.
+))))))))))) In High-Resolution mode: shift right 4 bits, sensitivity = 1mg/LSB.
+))))))))))) Divide by 1000 to convert mg into g, then subtract calibrated offset
  */
 void LSM_Read(LSM_Data *data) {
     uint8_t rawData[6];
@@ -678,10 +687,10 @@ void LSM_Read(LSM_Data *data) {
 
 /*
  * GYRO_Init()
- * ───────────
- * Configure the L3GD20 gyroscope via SPI.
- * CTRL_REG1 = 0x0F → Power on, enable XYZ axes, 95Hz ODR
- * We manually drive CS low/high because NSS is set to software mode.
+ * //////////////////////
+)))))))))))))))) Configure the L3GD20 gyroscope via SPI
+)))))))))))))))) CTRL_REG1 = 0x0F to Power on, enable XYZ axes, 95Hz ODR
+)))))))))))))))) We manually drive CS low/high because NSS is set to software mode
  */
 void GYRO_Init(void) {
     uint8_t data[2] = {GYRO_CTRL_REG1, 0x0F};
@@ -690,7 +699,6 @@ void GYRO_Init(void) {
     HAL_GPIO_WritePin(GYRO_CS_PORT, GYRO_CS_PIN, GPIO_PIN_SET);
 }
 
-// Add this helper function right above GYRO_Read
 uint8_t GYRO_Read_Byte(uint8_t reg) {
     uint8_t tx = 0x80 | reg; // 0x80 is the Read bit
     uint8_t rx = 0;
@@ -703,11 +711,11 @@ uint8_t GYRO_Read_Byte(uint8_t reg) {
 
 /*
  * GYRO_Read()
- * ───────────
- * Read all 6 gyroscope registers in one SPI burst transaction.
- * 0xC0 = 0x80 (read) | 0x40 (auto-increment address).
- * Sensitivity at ±250dps: 0.00875 dps/LSB.
- * Subtract calibrated offset to remove resting drift.
+ * //////////////////////
+))))))))))))))) Read all 6 gyroscope registers in one SPI burst transaction.
+))))))))))))))) 0xC0 = 0x80 (read) | 0x40 (auto-increment address).
+))))))))))))))) Sensitivity at ±250dps: 0.00875 dps/LSB.
+))))))))))))))) Subtract calibrated offset to remove resting drift.
  */
 void GYRO_Read(LSM_Data *data) {
     // uint8_t tx_buf[7] = {0};
@@ -726,8 +734,7 @@ void GYRO_Read(LSM_Data *data) {
     // data->gyro_scaled_y = (data->gyro_raw_y * 0.00875f) - data->gyro_offset_y;
     // data->gyro_scaled_z = (data->gyro_raw_z * 0.00875f) - data->gyro_offset_z;
 
-    // // NEW CODE BY GEMINI
-    // Read registers individually using your helper function
+    // Read registers individually using helper function
     uint8_t xL = GYRO_Read_Byte(0x28);
     uint8_t xH = GYRO_Read_Byte(0x29);
     uint8_t yL = GYRO_Read_Byte(0x2A);
@@ -739,7 +746,7 @@ void GYRO_Read(LSM_Data *data) {
     data->gyro_raw_y = (int16_t)((yH << 8) | yL);
     data->gyro_raw_z = (int16_t)((zH << 8) | zL);
 
-    // Scale and apply the offset to remove resting drift
+    // Scale and applying the offset to remove resting drift
     data->gyro_scaled_x = (data->gyro_raw_x * 0.00875f) - data->gyro_offset_x;
     data->gyro_scaled_y = (data->gyro_raw_y * 0.00875f) - data->gyro_offset_y;
     data->gyro_scaled_z = (data->gyro_raw_z * 0.00875f) - data->gyro_offset_z;
@@ -747,16 +754,14 @@ void GYRO_Read(LSM_Data *data) {
 
 
 /*
- * HAL_TIM_PeriodElapsedCallback() — THE CONTROL LOOP
- * ────────────────────────────────────────────────────
- * This function is called automatically by HAL every time TIM4 overflows.
- * With Prescaler=4799, Period=49 at 48MHz → fires exactly every 5ms (200Hz).
- *
- * Why put everything here?
- * If we put the filter + PID in while(1), the loop time varies because
- * printf() and other operations take variable time. A varying dt makes
- * the complementary filter drift and the PID behave unpredictably.
- * The timer ISR fires at a guaranteed fixed interval — no jitter.
+ * HAL_TIM_PeriodElapsedCallback() [ THE CONTROL LOOP ]
+ * //////////////////////////////////////////////////
+))))))) This function is called automatically by HAL every time TIM4 overflows
+))))))) With Prescaler=4799, Period=49 at 48MHz t------> fires exactly every 5ms (200Hz)
+
+ (((( If we put the filter + PID in while(1), the loop time varies because printf() and other operations take variable time
+  A varying dt makes the complementary filter drift and the PID behave unpredictably
+ The timer ISR fires at a guaranteed fixed interval ---> no jitter
  */
 
 
@@ -766,62 +771,59 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     {
         static int counter = 0;
 
-        /* ── STEP 1: Read sensors ──
-         * We read both IMU sensors every 5ms.
-         * The I2C/SPI calls here are blocking but very short (~50µs each),
-         * acceptable at 200Hz since we have 5ms budget per tick.
+        /* '''''''''''''''''''' STEP 1: Read sensors ''''''''''''''''''''
+            We read both IMU sensors every 5ms
+            The I2C/SPI calls here are blocking but very short (appx 50µs each)
+            But its acceptable at 200Hz since we have 5ms budget per tick.
          */
         LSM_Read(&acc_data);
         GYRO_Read(&acc_data);
 
-        /* ── STEP 2: Complementary filter ──
+        /* '''''''''''''''''''' STEP 2: Complementary filter ''''''''''''''''''''
          *
-         * acc_angle: tilt angle calculated from accelerometer alone.
-         *   atan2(X, Z) gives the angle of the board relative to gravity
-         *   in the X-Z plane — this is the pitch/tilt axis.
-         *   Multiplying by 180/π converts radians to degrees.
-         *   This is accurate but noisy (vibrations affect it).
+                acc_angle: tilt angle calculated from accelerometer alone.
+                  atan2(X, Z) gives the angle of the board relative to gravity in the X-Z plane, this is the pitch/tilt axis.
+                  Multiplying by 180/π converts radians to degrees.
+                  This is accurate but noisy (vibrations affect it).
          *
-         * tilt_angle: blended estimate.
-         *   98% comes from integrating the gyroscope (fast, smooth, drifts slowly).
-         *   2% comes from the accelerometer (slow, noisy, drift-free long-term).
-         *   Together they give a stable, low-noise angle estimate.
+                tilt_angle: blended estimate.
+                  98% comes from integrating the gyroscope (fast, smooth, drifts slowly).
+                  2% comes from the accelerometer (slow, noisy, drift-free long-term).
+                  Together they give a stable, low-noise angle estimate.
          *
-         * DT is the fixed 0.005s interval — MUST match TIM4 rate exactly.
+                DT is the fixed 0.005s interval (must match TIM4 rate exactly)
          *
-         * Note on axes: atan2(scaled_x, scaled_z) with gyro_scaled_x assumes
-         * the board tilts around the X axis. If your angle reads near 90° when
-         * flat or is backwards, try swapping to atan2(scaled_y, scaled_z) and
-         * using gyro_scaled_y. This depends on physical board orientation.
+                Note on axes: atan2(scaled_x, scaled_z) with gyro_scaled_x assumes the board tilts around the X axis. 
+                If angle reads near 90° when flat or is backwards, swap to atan2(scaled_y, scaled_z) and use gyro_scaled_y. This depends on physical board orientation.
          */
         acc_angle  = atan2f(acc_data.scaled_y, acc_data.scaled_z) * (180.0f / M_PI);
         tilt_angle = 0.98f * (tilt_angle + acc_data.gyro_scaled_y * DT)
                    + 0.02f * acc_angle;
 
-        /* ── STEP 3: PID controller ──
+        /* '''''''''''''''''''' STEP 3: PID controller ''''''''''''''''''''
          *
-         * error = how far we are from upright (setpoint = 0°).
-         * Positive error = tilted one way. Negative = other way.
+              //  error = how far we are from upright (setpoint = 0°)
+                Positive error = tilted one way. Negative = other way
          *
-         * P term: immediate response. Large error → large output.
-         *         Kp too high = oscillation. Too low = sluggish.
+              //  P term: immediate response. Large error -> large output.
+                        Kp too high = oscillation. Too low = sluggish.
          *
-         * I term: accumulates error over time. Fixes steady-state offset
-         *         (e.g. if robot settles at 2° instead of 0°, I pushes it back).
-         *         Anti-windup clamp prevents I from growing unbounded when
-         *         motors are already at max (integral windup causes instability).
+              //  I term: accumulates error over time. Fixes steady-state offset
+                        (e.g. if robot settles at 2° instead of 0°, I pushes it back).
+                        Anti-windup clamp prevents I from growing unbounded when
+                        motors are already at max (integral windup causes instability).
          *
-         * D term: reacts to error rate of change. Damps oscillations.
-         *         Kd too high = amplifies sensor noise.
+              //    D term: reacts to error rate of change. Damps oscillations.
+                        Kd too high = amplifies sensor noise.
          */
         float error = setpoint - tilt_angle;
 
         /* P */
         float P = Kp * error;
 
-        /* I — with anti-windup clamp */
+        /* I, with anti-windup clamp */
         integral += error * DT;
-        if      (integral >  500.0f) integral =  500.0f;  /* Clamp prevents windup */
+        if      (integral >  500.0f) integral =  500.0f;  // Clamp prevents windup
         else if (integral < -500.0f) integral = -500.0f;
         float I = Ki * integral;
 
@@ -832,12 +834,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         pid_output     = P + I + D;
         previous_error = error;
 
-        /* ── STEP 4: Drive motors ── */
+        /* '''''''''''''''''''' STEP 4: Drive motors '''''''''''''''''''' */
         Set_Motor_Speeds(-pid_output);
 
-        /* ── STEP 5: Throttle UART to 10Hz ──
-         * 200Hz ISR / counter threshold 20 = 10Hz display rate.
-         * This prevents serial output from slowing down the control loop.
+        /* '''''''''''''''''''' STEP 5: Throttle UART to 10Hz ''''''''''''''''''''
+         // 200Hz ISR / counter threshold 20 = 10Hz display rate.
+         // This prevents serial output from slowing down the control loop.
          */
         counter++;
         if (counter >= 20) {
@@ -849,16 +851,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 /*
  * Set_Motor_Speeds()
- * ──────────────────
- * Translates the signed PID output into:
- *   1. Motor direction (two GPIO pins per motor, H-bridge control)
- *   2. PWM magnitude (unsigned 0–999 written to TIM3 compare register)
+ * //////////////////////
+ \\\\\\ Translates the signed PID output into:
+ \\\\\\   1. Motor direction (two GPIO pins per motor, H-bridge control)
+ \\\\\\   2. PWM magnitude (unsigned 0–999 written to TIM3 compare register)
  *
  * H-bridge truth table for one motor:
- *   DIR1=HIGH, DIR2=LOW  → Forward
- *   DIR1=LOW,  DIR2=HIGH → Backward
- *   DIR1=LOW,  DIR2=LOW  → Coast (free spin)
- *   DIR1=HIGH, DIR2=HIGH → Brake (avoid this)
+ *   DIR1=HIGH, DIR2=LOW  -> Forward
+ *   DIR1=LOW,  DIR2=HIGH -> Backward
+ *   DIR1=LOW,  DIR2=LOW  -> Coast (free spin)
+ *   DIR1=HIGH, DIR2=HIGH -> Brake (avoid this)
  *
  * If motors spin the wrong direction when tilted forward,
  * swap the HIGH/RESET assignments in the pid_value > 0 block.
@@ -871,7 +873,7 @@ void Set_Motor_Speeds(float pid_value)
 
     if (pid_value > 0.0f)
     {
-        /* Tilting forward → drive forward to catch the fall */
+        // Tilting forward -> drive forward to catch the fall
         HAL_GPIO_WritePin(RIGHT_DIR1_PORT, RIGHT_DIR1_PIN, GPIO_PIN_SET);
         HAL_GPIO_WritePin(RIGHT_DIR2_PORT, RIGHT_DIR2_PIN, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(LEFT_DIR1_PORT,  LEFT_DIR1_PIN,  GPIO_PIN_RESET);
@@ -880,16 +882,16 @@ void Set_Motor_Speeds(float pid_value)
     }
     else if (pid_value < 0.0f)
     {
-        /* Tilting backward → drive backward */
+        // Tilting backward -> drive backward
         HAL_GPIO_WritePin(RIGHT_DIR1_PORT, RIGHT_DIR1_PIN, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(RIGHT_DIR2_PORT, RIGHT_DIR2_PIN, GPIO_PIN_SET);
         HAL_GPIO_WritePin(LEFT_DIR1_PORT,  LEFT_DIR1_PIN,  GPIO_PIN_SET);
         HAL_GPIO_WritePin(LEFT_DIR2_PORT,  LEFT_DIR2_PIN,  GPIO_PIN_RESET);
-        final_pwm = -pid_value;   /* PWM register must be positive */
+        final_pwm = -pid_value;   // PWM register must be positive
     }
     else
     {
-        /* Exactly balanced → coast to stop */
+        // Exactly balanced -> coast to stop
         HAL_GPIO_WritePin(RIGHT_DIR1_PORT, RIGHT_DIR1_PIN, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(RIGHT_DIR2_PORT, RIGHT_DIR2_PIN, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(LEFT_DIR1_PORT,  LEFT_DIR1_PIN,  GPIO_PIN_RESET);
@@ -898,23 +900,22 @@ void Set_Motor_Speeds(float pid_value)
     }
 
     /*
-     * Deadzone: below ~150 PWM counts, the motors don't have enough
-     * torque to overcome static friction and just buzz. Adding the
-     * deadzone lifts the minimum so they always actually spin.
-     * Only added when we intend to move (final_pwm > 0).
+     ==== Deadzone: below appx. 150 PWM counts, the motors don't have enough torque to overcome static friction and just buzz. 
+     Adding the deadzone lifts the minimum so they always actually spin.
+     Only added when we intend to move (final_pwm > 0).
      */
     if (final_pwm > 0.0f) {
         final_pwm += PWM_DEADZONE;
     }
 
-    /* Hard clamp — never write beyond TIM3 ARR (999) */
+    // Hard clamp , never write beyond TIM3 ARR (999)
     if (final_pwm > MAX_PWM) {
         final_pwm = MAX_PWM;
     }
 
-    /* Write to TIM3 compare registers — this sets the duty cycle */
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, (uint32_t)final_pwm); /* Right motor, PC6 */
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, (uint32_t)final_pwm); /* Left  motor, PC9 */
+    // Write to TIM3 compare registers, this sets the duty cycle
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, (uint32_t)final_pwm); // Right motor, PC6 
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, (uint32_t)final_pwm); // Left  motor, PC9 
 }
 
 /* USER CODE END 4 */
