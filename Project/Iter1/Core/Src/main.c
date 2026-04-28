@@ -857,10 +857,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
  \\\\\\   2. PWM magnitude (unsigned 0–999 written to TIM3 compare register)
  *
  * H-bridge truth table for one motor:
- *   DIR1=HIGH, DIR2=LOW  -> Forward
- *   DIR1=LOW,  DIR2=HIGH -> Backward
- *   DIR1=LOW,  DIR2=LOW  -> Coast (free spin)
- *   DIR1=HIGH, DIR2=HIGH -> Brake (avoid this)
+ +++++= DIR1=HIGH, DIR2=LOW  -> Forward
+ +++++= DIR1=LOW,  DIR2=HIGH -> Backward
+ +++++= DIR1=LOW,  DIR2=LOW  -> Coast (free spin)
+ +++++= DIR1=HIGH, DIR2=HIGH -> Brake (avoid this)
  *
  * If motors spin the wrong direction when tilted forward,
  * swap the HIGH/RESET assignments in the pid_value > 0 block.
