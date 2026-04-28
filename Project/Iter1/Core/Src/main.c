@@ -122,13 +122,21 @@ float acc_angle     = 0.0f;
 float Kp = 5.0f;
 // float Ki = 0.1f;
 // float Kd = 0.5f;
-float Ki = 0.0f;
+float Ki = 0.1f;
 float Kd = 0.5f;
 
 float setpoint       = 0.0f;  /// Desired angle = 0 deg. (upright)
 float integral       = 0.0f;
 float previous_error = 0.0f;
 float pid_output     = 0.0f;
+
+// At 200Hz, 400 samples = 2 seconds of averaging
+#define AUTOCAL_SAMPLES  400
+
+
+volatile uint8_t  autocal_active  = 0;   /* 1 while collecting samples */
+volatile uint32_t autocal_count   = 0;   /* samples collected so far   */
+volatile float    autocal_sum     = 0.0f; /* running sum of tilt_angle  */
 
 /* USER CODE END PV */
 
@@ -197,6 +205,25 @@ int _write(int file, char *ptr, int len) {
     HAL_UART_Transmit(&huart1, (uint8_t*)ptr, len, HAL_MAX_DELAY);
     return len;
 }
+
+
+/* Start_AutoCalibration()
+ * //////////////////
+ * Initiates a 2-second averaging window inside the ISR.
+ * The robot must be held upright and still during this time.
+ * When complete, the ISR writes the average directly into setpoint.
+ *
+ * WHY: The complementary filter takes ~0.5s to converge after startup.
+ *      Averaging over 2 full seconds (400 samples at 200Hz) gives a
+ *      stable, noise-averaged setpoint rather than a single noisy snapshot.
+ */
+void Start_AutoCalibration(void)
+{
+    autocal_sum    = 0.0f;
+    autocal_count  = 0;
+    autocal_active = 1;   /* ISR begins collecting on next tick */
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -835,7 +862,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         previous_error = error;
 
         /* '''''''''''''''''''' STEP 4: Drive motors '''''''''''''''''''' */
-        Set_Motor_Speeds(-pid_output);
+        Set_Motor_Speeds(pid_output);
 
         /* '''''''''''''''''''' STEP 5: Throttle UART to 10Hz ''''''''''''''''''''
          // 200Hz ISR / counter threshold 20 = 10Hz display rate.
